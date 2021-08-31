@@ -6,12 +6,10 @@
 #include <ArduinoOTA.h>
 #include <NeoPixelBus.h>
 #include <WiFiManager.h>
-#include "animations.h"
 
-#define HOSTNAME_PREFIX "door-leds-1"
-
-#define NUM_LEDS (134+134+134+134)
-#define SATURATION 32
+#define HOSTNAME_PREFIX "door-leds-test"
+#define SEG_LEDS 20
+#define NUM_LEDS (SEG_LEDS+SEG_LEDS+SEG_LEDS+SEG_LEDS)
 
 //      ====|====
 //      ====|====
@@ -28,9 +26,9 @@
 //
 
 #define LED_INDEX_SEG_L_L 0
-#define LED_INDEX_SEG_L_R (LED_INDEX_SEG_L_L + 134)
-#define LED_INDEX_SEG_R_L (LED_INDEX_SEG_L_R + 134)
-#define LED_INDEX_SEG_R_R (LED_INDEX_SEG_R_L + 134)
+#define LED_INDEX_SEG_L_R (LED_INDEX_SEG_L_L + SEG_LEDS)
+#define LED_INDEX_SEG_R_L (LED_INDEX_SEG_L_R + SEG_LEDS)
+#define LED_INDEX_SEG_R_R (LED_INDEX_SEG_R_L + SEG_LEDS)
 
 #define UDP_PORT 2342
 #define FRAMES_PER_SECOND 120
@@ -42,10 +40,10 @@ NeoPixelBus<NeoGrbwFeature, NeoEsp8266Dma800KbpsMethod> strip(NUM_LEDS);
 anim_fn_t anim_fn = NULL;
 uint8_t fps = FRAMES_PER_SECOND;
 
-RgbColor red(SATURATION, 0, 0);
-RgbColor green(0, SATURATION, 0);
-RgbColor blue(0, 0, SATURATION);
-RgbColor white(SATURATION);
+RgbColor red(255, 0, 0);
+RgbColor green(0, 255, 0);
+RgbColor blue(0, 0, 255);
+RgbColor white(255);
 RgbColor black(0);
 
 HslColor hslRed(red);
@@ -58,6 +56,8 @@ WiFiUDP cmd_udp;
 uint8_t pkt_data[PKT_MAX_LEN];
 char resp_data[2];
 char cb[200];
+
+bool status_led_state = false;
 
 void setup()
 {
@@ -146,19 +146,28 @@ void strobe_fn(uint8_t *fps) {
     for (int p = LED_INDEX_SEG_L_L; p < LED_INDEX_SEG_L_R; p++) {
       strip.SetPixelColor(p, color);
     }
-    for (int p = LED_INDEX_SEG_L_R; p < LED_INDEX_SEG_R_R; p++) {
+    for (int p = LED_INDEX_SEG_L_R; p < LED_INDEX_SEG_R_L; p++) {
       strip.SetPixelColor(p, hslBlack);
     }
-        for (int p = LED_INDEX_SEG_L_R; p < LED_INDEX_SEG_R_R; p++) {
+    for (int p = LED_INDEX_SEG_R_L; p < LED_INDEX_SEG_R_R; p++) {
+      strip.SetPixelColor(p, color);
+    }
+    for (int p = LED_INDEX_SEG_R_R; p < NUM_LEDS; p++) {
       strip.SetPixelColor(p, hslBlack);
     }
   } else { 
     for (int p = LED_INDEX_SEG_L_L; p < LED_INDEX_SEG_L_R; p++) {
       strip.SetPixelColor(p, hslBlack);
     }
-    for (int p = LED_INDEX_SEG_L_R; p < LED_INDEX_SEG_R_R; p++) {
+    for (int p = LED_INDEX_SEG_L_R; p < LED_INDEX_SEG_R_L; p++) {
       strip.SetPixelColor(p, color);
-    }    
+    }
+    for (int p = LED_INDEX_SEG_R_L; p < LED_INDEX_SEG_R_R; p++) {
+      strip.SetPixelColor(p, hslBlack);
+    }
+    for (int p = LED_INDEX_SEG_R_R; p < NUM_LEDS; p++) {
+      strip.SetPixelColor(p, color);
+    }
   }
 }
 
@@ -171,7 +180,7 @@ void rainbow_fn(uint8_t *fps) {
    hue=0;
  
   for(uint16_t i = 0; i < NUM_LEDS; i++) {
-    HslColor color = HslColor((float)((i+hue) % (int)(NUM_LEDS/compression)) / ((float)NUM_LEDS/compression), 0.85, (float)SATURATION / 255.0f);
+    HslColor color = HslColor((float)((i+hue) % (int)(NUM_LEDS/compression)) / ((float)NUM_LEDS/compression), 0.85, 0.1);
     strip.SetPixelColor(i, color);
   }
   hue+=huestep;
@@ -181,6 +190,42 @@ void off_fn(uint8_t *fps) {
   for(int i = 0; i < NUM_LEDS; i++){
     strip.SetPixelColor(i, hslBlack);
   }
+}
+
+void flag_strips(uint8_t *fps, std::vector<HtmlColor> flag) {
+  *fps=2;
+  if(flag.size() < 1) return;
+  int flagstrip_numleds = LED_INDEX_SEG_L_R / flag.size();
+
+  for (int flagstrip_index = 0; flagstrip_index < flag.size(); flagstrip_index++) {
+    for (int px = flagstrip_numleds * flagstrip_index; px < flagstrip_numleds * (flagstrip_index+1); px++) {
+      strip.SetPixelColor(px, flag[flagstrip_index]);
+      strip.SetPixelColor(px+LED_INDEX_SEG_L_R, flag[flagstrip_index]);
+      strip.SetPixelColor(px+LED_INDEX_SEG_R_L, flag[flagstrip_index]);
+      strip.SetPixelColor(px+LED_INDEX_SEG_R_R, flag[flagstrip_index]);
+//      flag[flagstrip_index].ToNumericalString(cb, 200);
+//      Serial.print(px);Serial.print(" ");Serial.println(cb);
+    }
+  }
+}
+
+void lgbt_flag_fn(uint8_t *fps) {
+  flag_strips(fps,std::vector<HtmlColor> { 
+    HtmlColor(0xe40303),
+    HtmlColor(0xff8c00),
+    HtmlColor(0xffed00),
+    HtmlColor(0x008026),
+    HtmlColor(0x004dff),
+    HtmlColor(0x750787) });
+}
+
+void trans_flag_fn(uint8_t *fps) {
+  flag_strips(fps,std::vector<HtmlColor> { 
+    HtmlColor(0x5bcefa),
+    HtmlColor(0xf5a9b8),
+    HtmlColor(0xffffff),
+    HtmlColor(0xf5a9b8),
+    HtmlColor(0x5bcefa) });
 }
 
 void net_parse() {
@@ -209,6 +254,15 @@ void net_parse() {
         resp_data[0] = 'o';
         anim_fn = off_fn;
         break;
+      case 'l':
+        resp_data[0] = 'l';
+        anim_fn = lgbt_flag_fn;
+        break;
+      case 'a':
+        resp_data[0] = 'a';
+        anim_fn = trans_flag_fn;
+        break;
+        
       case 'x':
 
       default:
@@ -220,6 +274,9 @@ void net_parse() {
     Serial.print(resp_data);
     cmd_udp.endPacket();
     txt_data_index = 0;
+    digitalWrite(LED_BUILTIN, status_led_state);
+    status_led_state = !status_led_state;
+
   }
 }
 
@@ -231,7 +288,6 @@ void loop()
   ArduinoOTA.handle();
 
   net_parse();
-  digitalWrite(LED_BUILTIN, 0);
       
   if(anim_fn) {
     if((millis() - loop_ms) > (1000/fps)) {
