@@ -6,6 +6,8 @@
 #include <NeoPixelBus.h>
 #include <WiFiManager.h>
 
+#include "params.h"
+
 #define HOSTNAME_PREFIX "door-leds-1"
 #define SEG_LEDS 134
 #define NUM_LEDS (SEG_LEDS + SEG_LEDS + SEG_LEDS + SEG_LEDS + 6)
@@ -88,13 +90,13 @@ void setup()
 
   Serial.print("I am ");
   Serial.println(hostname);
-  IPAddress static_IP(10, 23, 40, 163);
-  IPAddress gw_IP(10, 23, 40, 1);
-  IPAddress mask_IP(255, 255, 255, 0);
+  IPAddress static_IP(PARAM_STATIC_IP);
+  IPAddress gw_IP(PARAM_STATIC_GW);
+  IPAddress mask_IP(PARAM_STATIC_NETMASK);
   WiFi.hostname(hostname);
   WiFi.mode(WIFI_STA);
   WiFi.config(static_IP, gw_IP, mask_IP);
-  WiFi.begin("lab23-technik", "93h31m3r73cHN1kk3Y");
+  WiFi.begin(PARAM_STATIC_SSID, PARAM_STATIC_PSK);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
